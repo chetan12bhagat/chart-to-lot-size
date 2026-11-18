@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chart to Lot Size</title>
+<style>
+  :root {
+    --accent: #0f6b4f;
+    --bg: #f6f7f5;
+    --card: #ffffff;
+    --text: #1a1a1a;
+    --muted: #666666;
+    --border: #dddddd;
+    --input-bg: #ffffff;
+    --warn-bg: #fff4e5;
+    --warn-text: #7a4a00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121414;
+      --card: #1d1f1f;
+      --text: #f0f0f0;
+      --muted: #aaaaaa;
+      --border: #3a3d3d;
+      --input-bg: #262929;
+      --warn-bg: #3a2a12;
+      --warn-text: #ffcf8a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 16px 12px 40px;
+  }
+  .wrap { max-width: 520px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: 4px 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 16px; font-size: 0.95rem; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .card h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  label { display: block; font-size: 0.9rem; margin: 10px 0 4px; color: var(--muted); }
+  input, select {
+    width: 100%;
+    padding: 10px;
+    font-size: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--input-bg);
+    color: var(--text);
+  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  button {
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #ffffff;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  button.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .modes button { margin-top: 0; }
+  .modes button:not(.active) { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .drop {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 22px 12px;
+    text-align: center;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .drop.over { border-color: var(--accent); }
+  #preview { max-width: 100%; border-radius: 8px; margin-top: 10px; display: none; }
+  .status { margin-top: 10px; font-size: 0.95rem; min-height: 1.2em; }
+  .status.error { color: #c0392b; }
+  .status.ok { color: var(--accent); }
+  .hidden { display: none !important; }
+  .big { font-size: 2.4rem; font-weight: 700; line-height: 1.1; }
+  .formula { color: var(--muted); margin-top: 6px; }
+  .money { margin-top: 10px; font-size: 1rem; }
+  .warn {
+    background: var(--warn-bg);
+    color: var(--warn-text);
+    border-radius: 8px;
+    padding: 10px;
+    margin-top: 10px;
+    font-size: 0.9rem;
+  }
+  .stat { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+  .stat span:last-child { font-weight: 600; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 0.85rem; }
+  .badge-buy { background: #d4edda; color: #155724; }
+  .badge-sell { background: #f8d7da; color: #721c24; }
+  @media (prefers-color-scheme: dark) {
+    .badge-buy { background: #1b4332; color: #74c69d; }
+    .badge-sell { background: #491217; color: #ff8a93; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Chart to Lot Size</h1>
+  <p class="sub">Paste a chart, read the prices, get your lot size.</p>
+
+  <div class="modes">
+    <button type="button" id="modeChartBtn" class="active">Read from chart</button>
+    <button type="button" id="modeManualBtn">Type prices manually</button>
+  </div>
+
+  <div class="card" id="chartSection">
+    <h2>Chart</h2>
+    <div class="drop" id="dropZone" tabindex="0" role="button">
+      Tap to choose an image, drag and drop, or press Ctrl+V to paste
+      <input type="file" id="fileInput" accept="image/png,image/jpeg,image/webp,image/gif" class="hidden">
+    </div>
+    <img id="preview" alt="Chart preview">
+    <div id="passwordWrap" class="hidden">
+      <label for="passwordInput">App password</label>
+      <input type="password" id="passwordInput" autocomplete="off" placeholder="Enter app password">
+    </div>
+    <button type="button" id="readBtn" disabled>Read chart with Claude</button>
+    <button type="button" id="clearBtn" class="secondary">Remove old chart and clear prices</button>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="card" id="pricesSection">
+    <h2>Prices</h2>
+    <label for="instrument">Instrument</label>
+    <select id="instrument">
+      <option value="forex" data-pip="0.0001">EURUSD and most pairs — pip 0.0001</option>
+      <option value="jpy" data-pip="0.01">JPY pairs — pip 0.01</option>
+      <option value="gold" data-pip="0.1">Gold XAUUSD — pip 0.1</option>
+      <option value="crypto" data-pip="1.0">Crypto (BTC/ETH) — point 1.0</option>
+      <option value="indices" data-pip="1.0">Indices (US30 / NAS100) — point 1.0</option>
+    </select>
+
+    <label for="entry">Entry</label>
+    <input type="number" id="entry" step="any" inputmode="decimal" placeholder="e.g. 1.0850">
+
+    <div class="row">
+      <div>
+        <label for="sl">Stop loss</label>
+        <input type="number" id="sl" step="any" inputmode="decimal" placeholder="e.g. 1.0820">
+      </div>
+      <div>
+        <label for="tp">Take profit</label>
+        <input type="number" id="tp" step="any" inputmode="decimal" placeholder="e.g. 1.0890">
+      </div>
+    </div>
+
+    <div class="stat"><span>Trade direction</span><span id="directionBadge">—</span></div>
+    <div class="stat"><span>Risk distance</span><span id="riskPips">—</span></div>
+    <div class="stat"><span>Profit distance</span><span id="profitPips">—</span></div>
+    <div class="stat"><span>Risk : Reward</span><span id="rr">—</span></div>
+    <div class="status" id="rrNote"></div>
+    <div class="warn hidden" id="sideWarning">Stop loss and take profit should be on opposite sides of entry</div>
+  </div>
+
+  <div class="card" id="lotSection">
+    <h2>Lot size</h2>
+    <div class="row3">
+      <div>
+        <label for="riskAmount">A — Risk $</label>
+        <input type="number" id="riskAmount" step="any" inputmode="decimal" value="50">
+      </div>
+      <div>
+        <label for="pipValue">C — Pip value $ / lot</label>
+        <input type="number" id="pipValue" step="any" inputmode="decimal" value="10">
+      </div>
+      <div>
+        <label>B — Stop pips</label>
+        <input type="text" id="stopPipsDisplay" value="—" readonly>
+      </div>
+    </div>
+    <div style="margin-top:14px;">Lot size</div>
+    <div class="big" id="lotSize">—</div>
+    <div class="formula" id="formula">Fill entry and stop loss to calculate</div>
+    <div class="money" id="riskMoney">You risk $—</div>
+    <div class="money" id="winMoney">You can win $—</div>
+    <p class="sub" style="margin-top:12px;">Formula: D = A ÷ B ÷ C. Lot size is shown rounded to 2 decimals.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  var mode = "chart";
+  var chartFile = null;
+  var appPassword = "";
+
+  var modeChartBtn = document.getElementById("modeChartBtn");
+  var modeManualBtn = document.getElementById("modeManualBtn");
+  var chartSection = document.getElementById("chartSection");
+  var dropZone = document.getElementById("dropZone");
+  var fileInput = document.getElementById("fileInput");
+  var preview = document.getElementById("preview");
+  var readBtn = document.getElementById("readBtn");
+  var clearBtn = document.getElementById("clearBtn");
+  var statusEl = document.getElementById("status");
+  var passwordWrap = document.getElementById("passwordWrap");
+  var passwordInput = document.getElementById("passwordInput");
+
+  var entryInput = document.getElementById("entry");
+  var slInput = document.getElementById("sl");
+  var tpInput = document.getElementById("tp");
+  var instrumentSelect = document.getElementById("instrument");
+  var riskAmountInput = document.getElementById("riskAmount");
+  var pipValueInput = document.getElementById("pipValue");
+  var riskPipsEl = document.getElementById("riskPips");
+  var profitPipsEl = document.getElementById("profitPips");
+  var rrEl = document.getElementById("rr");
+  var rrNoteEl = document.getElementById("rrNote");
+  var sideWarning = document.getElementById("sideWarning");
+  var directionBadge = document.getElementById("directionBadge");
+  var lotSizeEl = document.getElementById("lotSize");
+  var formulaEl = document.getElementById("formula");
+  var riskMoneyEl = document.getElementById("riskMoney");
+  var winMoneyEl = document.getElementById("winMoney");
+  var stopPipsDisplay = document.getElementById("stopPipsDisplay");
+
+  // Restore saved app password from session storage if present
+  try {
+    var savedPw = sessionStorage.getItem("chart_app_password");
+    if (savedPw) {
+      appPassword = savedPw;
+      passwordInput.value = savedPw;
+    }
+  } catch (e) {}
+
+  function setStatus(text, kind) {
+    statusEl.textContent = text || "";
+    statusEl.className = "status" + (kind ? " " + kind : "");
+  }
+
+  function pipSize() {
+    var opt = instrumentSelect.options[instrumentSelect.selectedIndex];
+    return parseFloat(opt.getAttribute("data-pip")) || 0.0001;
+  }
+
+  function num(el) {
+    var v = parseFloat(el.value);
+    return isFinite(v) ? v : null;
+  }
+
+  function recalc() {
+    var entry = num(entryInput);
+    var sl = num(slInput);
+    var tp = num(tpInput);
+    var pip = pipSize();
+    var risk = parseFloat(riskAmountInput.value);
+    var pipValue = parseFloat(pipValueInput.value);
+    if (!isFinite(risk) || risk <= 0) risk = null;
+    if (!isFinite(pipValue) || pipValue <= 0) pipValue = null;
+
+    // Detect trade direction (Buy / Long vs Sell / Short)
+    var dirText = "—";
+    var dirClass = "";
+    if (entry !== null && sl !== null) {
+      if (entry > sl) {
+        dirText = "BUY / LONG";
+        dirClass = "badge badge-buy";
+      } else if (entry < sl) {
+        dirText = "SELL / SHORT";
+        dirClass = "badge badge-sell";
+      }
+    }
+    directionBadge.textContent = dirText;
+    directionBadge.className = dirClass;
+
+    var riskPips = null;
+    var profitPips = null;
+    if (entry !== null && sl !== null && pip > 0) {
+      riskPips = Math.abs(entry - sl) / pip;
+    }
+    if (entry !== null && tp !== null && pip > 0) {
+      profitPips = Math.abs(tp - entry) / pip;
+    }
+
+    riskPipsEl.textContent = riskPips === null ? "—" : riskPips.toFixed(1) + " pips";
+    profitPipsEl.textContent = profitPips === null ? "—" : profitPips.toFixed(1) + " pips";
+    stopPipsDisplay.value = riskPips === null ? "—" : riskPips.toFixed(1);
+
+    var rr = null;
+    if (riskPips !== null && profitPips !== null && riskPips > 0) {
+      rr = profitPips / riskPips;
+      rrEl.textContent = "1 : " + rr.toFixed(2);
+      if (rr >= 2) {
+        rrNoteEl.textContent = "Good reward";
+      } else if (rr >= 1) {
+        rrNoteEl.textContent = "Okay";
+      } else {
+        rrNoteEl.textContent = "Reward is smaller than risk";
+      }
+    } else {
+      rrEl.textContent = "—";
+      rrNoteEl.textContent = "";
+    }
+
+    if (risk !== null && riskPips !== null && riskPips > 0 && pipValue !== null && pipValue > 0) {
+      var lot = risk / riskPips / pipValue;
+      var lotRounded = Math.round(lot * 100) / 100;
+      if (lot < 0.005) {
+        lotSizeEl.textContent = "< 0.01";
+        formulaEl.textContent = risk + " ÷ " + riskPips.toFixed(1) + " ÷ " + pipValue + " = " + lot.toFixed(4) + " (below 0.01 micro lot)";
+      } else {
+        lotSizeEl.textContent = lotRounded.toFixed(2);
+        formulaEl.textContent = risk + " ÷ " + riskPips.toFixed(1) + " ÷ " + pipValue + " = " + lot.toFixed(4);
+      }
+      var calcLot = lotRounded > 0 ? lotRounded : lot;
+      var riskActual = calcLot * riskPips * pipValue;
+      riskMoneyEl.textContent = "You risk $" + riskActual.toFixed(2);
+      if (profitPips !== null) {
+        var winActual = calcLot * profitPips * pipValue;
+        winMoneyEl.textContent = "You can win $" + winActual.toFixed(2);
+      } else {
+        winMoneyEl.textContent = "You can win $—";
+      }
+    } else {
+      lotSizeEl.textContent = "—";
+      formulaEl.textContent = "Fill entry and stop loss to calculate";
+      riskMoneyEl.textContent = "You risk $—";
+      winMoneyEl.textContent = "You can win $—";
+    }
+
+    // Trade validation: SL and TP should be on opposite sides of entry
+    var showWarn = false;
+    var warnText = "Stop loss and take profit should be on opposite sides of entry";
+    if (entry !== null && sl !== null) {
+      if (entry === sl) {
+        showWarn = true;
+        warnText = "Stop loss cannot be equal to entry price";
+      } else if (tp !== null) {
+        if (entry === tp) {
+          showWarn = true;
+          warnText = "Take profit cannot be equal to entry price";
+        } else if ((sl - entry) * (tp - entry) > 0) {
+          showWarn = true;
+          warnText = "Stop loss and take profit should be on opposite sides of entry";
+        }
+      }
+    }
+    sideWarning.textContent = warnText;
+    sideWarning.classList.toggle("hidden", !showWarn);
+  }
+
+  function setMode(next) {
+    mode = next;
+    modeChartBtn.classList.toggle("active", mode === "chart");
+    modeManualBtn.classList.toggle("active", mode === "manual");
+    chartSection.classList.toggle("hidden", mode === "manual");
+    if (mode === "manual") entryInput.focus();
+    recalc();
+  }
+
+  modeChartBtn.addEventListener("click", function () { setMode("chart"); });
+  modeManualBtn.addEventListener("click", function () { setMode("manual"); });
+
+  function setFile(file) {
+    if (!file) return;
+    var validMimes = ["image/png", "image/jpeg", "image/jpg", "image/pjpeg", "image/webp", "image/gif"];
+    var isImageMime = file.type && validMimes.indexOf(file.type.toLowerCase()) !== -1;
+    var isImageExt = /\.(png|jpe?g|webp|gif)$/i.test(file.name || "");
+    if (!isImageMime && !isImageExt) {
+      setStatus("Please choose a PNG, JPEG, WebP or GIF image.", "error");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setStatus("Image is too large (max 5 MB).", "error");
+      return;
+    }
+    chartFile = file;
+    if (preview.src && preview.src.startsWith("blob:")) {
+      URL.revokeObjectURL(preview.src);
+    }
+    preview.src = URL.createObjectURL(file);
+    preview.style.display = "block";
+    readBtn.disabled = false;
+    setStatus("Chart loaded. Click “Read chart with Claude”.", "ok");
+  }
+
+  dropZone.addEventListener("click", function () { fileInput.click(); });
+  dropZone.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
+  });
+  fileInput.addEventListener("change", function () { setFile(fileInput.files[0]); });
+  dropZone.addEventListener("dragover", function (e) { e.preventDefault(); dropZone.classList.add("over"); });
+  dropZone.addEventListener("dragleave", function () { dropZone.classList.remove("over"); });
+  dropZone.addEventListener("drop", function (e) {
+    e.preventDefault();
+    dropZone.classList.remove("over");
+    if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+  });
+  document.addEventListener("paste", function (e) {
+    var clipboardData = e.clipboardData || window.clipboardData;
+    if (!clipboardData) return;
+
+    var file = null;
+    // 1. Check clipboard items (standard for screenshots in all modern browsers)
+    if (clipboardData.items) {
+      for (var i = 0; i < clipboardData.items.length; i++) {
+        var item = clipboardData.items[i];
+        if (item.type && item.type.indexOf("image") !== -1) {
+          file = item.getAsFile();
+          if (file) break;
+        }
+      }
+    }
+    // 2. Check files fallback
+    if (!file && clipboardData.files && clipboardData.files.length) {
+      file = clipboardData.files[0];
+    }
+
+    if (file) {
+      e.preventDefault();
+      if (mode === "manual") setMode("chart");
+      setFile(file);
+    }
+  });
+
+  passwordInput.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      readBtn.click();
+    }
+  });
+
+  clearBtn.addEventListener("click", function () {
+    chartFile = null;
+    fileInput.value = "";
+    if (preview.src && preview.src.startsWith("blob:")) {
+      URL.revokeObjectURL(preview.src);
+    }
+    preview.src = "";
+    preview.style.display = "none";
+    readBtn.disabled = true;
+    entryInput.value = "";
+    slInput.value = "";
+    tpInput.value = "";
+    setStatus("");
+    recalc();
+  });
+
+  readBtn.addEventListener("click", async function () {
+    if (!chartFile) return;
+    if (passwordInput.value) {
+      appPassword = passwordInput.value;
+      try { sessionStorage.setItem("chart_app_password", appPassword); } catch (e) {}
+    }
+    readBtn.disabled = true;
+    setStatus("Reading chart…");
+    var form = new FormData();
+    form.append("image", chartFile);
+    var headers = {};
+    if (appPassword) headers["X-App-Password"] = appPassword;
+    try {
+      var res = await fetch("/api/read-chart", { method: "POST", headers: headers, body: form });
+      var data = null;
+      try { data = await res.json(); } catch (e) { data = null; }
+      if (res.status === 401) {
+        passwordWrap.classList.remove("hidden");
+        passwordInput.focus();
+        setStatus("This server needs a password. Enter it above, then click “Read chart with Claude” again. You can also type prices instead.", "error");
+        return;
+      }
+      if (res.status === 429) {
+        setStatus("Too many chart reads. Please wait a while and try again. You can type prices instead.", "error");
+        return;
+      }
+      if (!res.ok) {
+        var msg = (data && data.error) ? data.error : "Server error.";
+        setStatus(msg + " You can type prices instead.", "error");
+        return;
+      }
+      if (data.entry !== null && data.entry !== undefined) entryInput.value = data.entry;
+      if (data.sl !== null && data.sl !== undefined) slInput.value = data.sl;
+      if (data.tp !== null && data.tp !== undefined) tpInput.value = data.tp;
+      if (data.instrument) {
+        var opt = instrumentSelect.querySelector('option[value="' + data.instrument + '"]');
+        if (opt) instrumentSelect.value = data.instrument;
+      }
+      recalc();
+      var dir = data.direction ? " (" + data.direction.toUpperCase() + ")" : "";
+      setStatus("Done" + dir + ". Check the prices against your chart.", "ok");
+    } catch (e) {
+      setStatus("Network error. Check your connection and try again, or type prices instead.", "error");
+    } finally {
+      readBtn.disabled = !chartFile;
+    }
+  });
+
+  [entryInput, slInput, tpInput, riskAmountInput, pipValueInput].forEach(function (el) {
+    el.addEventListener("input", recalc);
+  });
+  instrumentSelect.addEventListener("change", recalc);
+
+  recalc();
+})();
+</script>
+</body>
+</html>
