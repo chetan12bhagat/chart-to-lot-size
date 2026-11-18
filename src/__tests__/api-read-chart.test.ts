@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { POST } from "@/app/api/read-chart/route";
+import { POST } from "@/lib/ts-route-handler";
 import { NextRequest } from "next/server";
 import { resetRateLimiter } from "@/lib/rate-limit";
 

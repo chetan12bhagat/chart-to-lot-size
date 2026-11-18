@@ -165,7 +165,19 @@ def index():
     return send_from_directory(os.path.dirname(os.path.abspath(__file__)), "index.html")
 
 
+@app.route("/api/health", methods=["GET"])
+@app.route("/api/backend-info", methods=["GET"])
+def backend_info():
+    return jsonify({
+        "status": "healthy",
+        "runtime": "python",
+        "engine": "Flask (Python 3.9+)",
+        "features": ["ai-chart-analysis", "claude-vision"]
+    }), 200
+
+
 @app.route("/api/read-chart", methods=["POST"])
+@app.route("/read-chart", methods=["POST"])
 def read_chart():
     # Password protection, if configured. Checked before any other work.
     expected_password = os.environ.get("APP_PASSWORD")
