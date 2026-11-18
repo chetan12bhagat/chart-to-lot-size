@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
     apiKey,
   });
 
-  const model = process.env.CLAUDE_MODEL || "claude-3-5-sonnet-20241022";
+  const model = process.env.CLAUDE_MODEL || "claude-sonnet-5-5";
 
   try {
     const response = await anthropic.messages.create({
